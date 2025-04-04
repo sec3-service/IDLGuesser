@@ -1,0 +1,9 @@
+/target
+/.vscode
+.DS_Store
+*.txt
+*.so.id0
+*.so.id1
+*.so.id2
+*.so.nam
+*.so.til
