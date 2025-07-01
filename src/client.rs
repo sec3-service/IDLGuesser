@@ -17,6 +17,10 @@ pub fn create_client(url: &str) -> RpcClient {
 /// Retrieve the program's associated IDL account data and return the deserialized JSON data.
 pub fn get_idl_account(client: &RpcClient, program_id: &Pubkey) -> Result<serde_json::Value> {
     let account = client.get_account(&IdlAccount::address(program_id))?;
+    if account.data.is_empty() {
+        return Err(anyhow!("No IDL account found for program ID: {}", program_id));
+    }
+    
     let mut d: &[u8] = &account.data[IdlAccount::DISCRIMINATOR.len()..];
     let idl_account: IdlAccount = AnchorDeserialize::deserialize(&mut d)?;
 
