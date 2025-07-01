@@ -13,7 +13,7 @@ pub struct Idl {
     pub types: Vec<IDLType>,
 }
 
-#[derive(Debug, Serialize, PartialEq)]
+#[derive(Debug, Serialize, PartialEq, Eq)]
 pub struct Metadata {
     pub name: String,
     pub version: String,
@@ -21,13 +21,13 @@ pub struct Metadata {
     pub description: String,
 }
 
-#[derive(Debug, Serialize, PartialEq)]
+#[derive(Debug, Serialize, PartialEq, Eq)]
 pub struct IDLAccount {
     pub name: String,
     pub discriminator: [u8; 8],
 }
 
-#[derive(Debug, Serialize, PartialEq)]
+#[derive(Debug, Serialize, PartialEq, Eq)]
 pub struct IDLError {
     pub code: u32,
     pub name: String,
@@ -41,13 +41,13 @@ pub struct IDLType {
     pub ty: InnerType,
 }
 
-#[derive(Debug, Serialize, PartialEq)]
+#[derive(Debug, Serialize, PartialEq, Eq)]
 pub struct InnerType {
     pub kind: String,
     pub fields: Vec<ArgMeta>,
 }
 
-#[derive(Debug, Serialize, PartialEq)]
+#[derive(Debug, Serialize, PartialEq, Eq)]
 pub struct InstructionInfo {
     pub name: String,
     pub discriminator: [u8; 8],
@@ -55,14 +55,14 @@ pub struct InstructionInfo {
     pub args: Vec<ArgMeta>,
 }
 
-#[derive(Debug, Serialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Clone, PartialEq, Eq)]
 pub struct ArgMeta {
     pub name: String,
     #[serde(rename = "type")]
     pub ty: String,
 }
 
-#[derive(Debug, Serialize, Clone, PartialEq)]
+#[derive(Debug, Serialize, Clone, PartialEq, Eq)]
 pub struct AccountMeta {
     pub name: String,
     #[serde(skip_serializing_if = "is_false")]

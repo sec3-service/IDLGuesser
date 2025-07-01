@@ -39,7 +39,7 @@ impl ContextObject for TestContextObject {
 
 impl TestContextObject {
     /// Initialize with instruction meter
-    pub fn new(remaining: u64) -> Self {
+    pub const fn new(remaining: u64) -> Self {
         Self {
             trace_log: Vec::new(),
             remaining,
@@ -70,7 +70,7 @@ pub fn extract_args(executable_data: &[u8], entrypoint: usize) -> Vec<ArgMeta> {
 
     let mut hash = 0u64;
     let mut fields = vec![];
-    
+
     // TODO: handle vector
     for length in 0u64..1000 {
         let mut stack: AlignedMemory<{ HOST_ALIGN }> =
@@ -119,7 +119,7 @@ pub fn extract_args(executable_data: &[u8], entrypoint: usize) -> Vec<ArgMeta> {
         interpreter.reg[11] += 1;
         while interpreter.step() {
             let pc = interpreter.reg[11];
-            let insn = ebpf::get_insn_unchecked(program, pc as usize);
+            let insn = ebpf::get_insn_unchecked(program, usize::try_from(pc).unwrap());
             if insn.opc == ebpf::CALL_IMM {
                 break;
             }
@@ -134,7 +134,7 @@ pub fn extract_args(executable_data: &[u8], entrypoint: usize) -> Vec<ArgMeta> {
     let mut args = vec![];
     for idx in 0..fields.len() - 1 {
         args.push(ArgMeta {
-            name: format!("field_{}", idx),
+            name: format!("field_{idx}"),
             ty: match fields[idx + 1] - fields[idx] {
                 1 => "u8".to_string(),
                 2 => "u16".to_string(),
@@ -142,7 +142,7 @@ pub fn extract_args(executable_data: &[u8], entrypoint: usize) -> Vec<ArgMeta> {
                 8 => "u64".to_string(),
                 16 => "u128".to_string(),
                 32 => "pubkey".to_string(),
-                x => format!("[u8; {}]", x),
+                x => format!("[u8; {x}]"),
             },
         });
     }
@@ -169,7 +169,7 @@ pub fn extract_types(
     for (account_name, &entrypoint) in deserializers {
         let mut hash = 0u64;
         let mut fields = vec![];
-        
+
         // TODO: handle vector
         for length in 0u64..1000 {
             let mut stack: AlignedMemory<{ HOST_ALIGN }> =
@@ -218,7 +218,7 @@ pub fn extract_types(
             interpreter.reg[11] += 1;
             while interpreter.step() {
                 let pc = interpreter.reg[11];
-                let insn = ebpf::get_insn_unchecked(program, pc as usize);
+                let insn = ebpf::get_insn_unchecked(program, usize::try_from(pc).unwrap());
                 if insn.opc == ebpf::CALL_IMM {
                     break;
                 }
@@ -241,7 +241,7 @@ pub fn extract_types(
                     8 => "u64".to_string(),
                     16 => "u128".to_string(),
                     32 => "pubkey".to_string(),
-                    x => format!("[u8; {}]", x),
+                    x => format!("[u8; {x}]"),
                 },
             });
         }

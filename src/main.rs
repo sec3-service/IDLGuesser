@@ -46,10 +46,10 @@ fn main() -> Result<()> {
 
     if !opts.force_guess {
         if let Ok(account) = client::get_idl_account(&client, &program_id) {
-            let idl_path = format!("{}.json", program_id);
+            let idl_path = format!("{program_id}.json");
             let mut file = File::create(&idl_path)?;
             file.write_all(serde_json::to_string_pretty(&account)?.as_bytes())?;
-            println!("Public IDL found for {}, saved to {}", program_id, idl_path);
+            println!("Public IDL found for {program_id}, saved to {idl_path}");
             return Ok(());
         }
     }
@@ -106,7 +106,7 @@ fn main() -> Result<()> {
         .collect();
 
     let (call_graph, reference_graph) =
-        generate_call_graph(&executable, &function_ranges, &instructions)?;
+        generate_call_graph(&executable, &function_ranges, &instructions);
 
     let (instruction_handlers, possible_signer_error) = find_instruction_handlers(
         &executable,
@@ -125,7 +125,7 @@ fn main() -> Result<()> {
     debug!("possible_signer_error: {:?}", possible_signer_error);
 
     let signer_try_from_pc = match possible_signer_error {
-        Some(pc) => reference_graph.get(&pc).and_then(|x| x.first().cloned()),
+        Some(pc) => reference_graph.get(&pc).and_then(|x| x.first().copied()),
         None => None,
     };
     debug!("signer_try_from_pc: {:?}", signer_try_from_pc);
@@ -155,7 +155,7 @@ fn main() -> Result<()> {
                         .map(|(_, insn)| insn)
                         .collect::<Vec<&ebpf::Insn>>(),
                     function_registry,
-                    &sbpf_version,
+                    sbpf_version,
                     &executable_data,
                     signer_try_from_pc,
                 )
@@ -187,11 +187,11 @@ fn main() -> Result<()> {
         types: extract_types(&executable_data, &deserializers),
     };
 
-    println!("Generated IDL for {}", program_id);
-    let idl_path = format!("{}.json", program_id);
+    println!("Generated IDL for {program_id}");
+    let idl_path = format!("{program_id}.json");
     let mut file = File::create(&idl_path)?;
     file.write_all(serde_json::to_string_pretty(&idl)?.as_bytes())?;
-    println!("Saved IDL to {}", idl_path);
+    println!("Saved IDL to {idl_path}");
 
     Ok(())
 }

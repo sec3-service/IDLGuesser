@@ -43,7 +43,7 @@ pub fn extract_ix_accounts(
     analysis: &Analysis,
     instructions: &[&ebpf::Insn],
     function_registry: &FunctionRegistry<usize>,
-    sbpf_version: &SBPFVersion,
+    sbpf_version: SBPFVersion,
     executable_data: &[u8],
     signer_try_from_pc: Option<usize>,
 ) -> Result<Vec<AccountMeta>, &'static str> {
@@ -117,12 +117,73 @@ pub fn extract_ix_accounts(
                     continue;
                 }
                 // Recover account name from error message
-                let offset = lddw_inst.imm as usize & 0xffffffff;
-                let length = mov64_inst.imm as usize;
+                let offset = match usize::try_from(lddw_inst.imm) {
+                    Ok(it) => it,
+                    Err(err) => {
+                        debug!("Error converting offset: {}", err);
+                        continue;
+                    }
+                } & 0xffff_ffff;
+                let Ok(length) = usize::try_from(mov64_inst.imm) else {
+                    continue;
+                };
                 let account_name =
                     String::from_utf8_lossy(&executable_data[offset..offset + length]).to_string();
 
-                if !accounts.contains(&account_name) {
+                if accounts.contains(&account_name) {
+                    debug!("    constraint {} {}", child_node.label, account_name);
+                    for call_site in child_node.instructions.start + 2..child_node.instructions.end
+                    {
+                        let insn = analysis.instructions.get(call_site).unwrap();
+                        let mov64_inst = analysis.instructions.get(call_site - 1).unwrap();
+                        if !matches!(
+                            (insn.opc, mov64_inst.opc, mov64_inst.dst),
+                            (ebpf::CALL_IMM, ebpf::MOV64_IMM, 2)
+                        ) {
+                            continue;
+                        }
+                        match mov64_inst.imm {
+                            CONSTRAINT_MUT => {
+                                debug!("        mut");
+                                for account in &mut accountmetas {
+                                    if account.name == account_name {
+                                        account.writable = true;
+                                    }
+                                }
+                            }
+                            CONSTRAINT_SIGNER => {
+                                debug!("        signer");
+                                for account in &mut accountmetas {
+                                    if account.name == account_name {
+                                        account.signer = true;
+                                    }
+                                }
+                            }
+                            CONSTRAINT_RENT_EXEMPT => {
+                                debug!("        init");
+                                // Replace the first placeholder with the account
+                                let original_account = accountmetas
+                                    .iter()
+                                    .find(|account| account.name == account_name)
+                                    .unwrap()
+                                    .clone();
+                                accountmetas.retain(|account| account.name != account_name);
+                                for account in &mut accountmetas {
+                                    if account.name == "INIT_PLACEHOLDER" {
+                                        account.name.clone_from(&account_name);
+                                        account.signer = original_account.signer;
+                                        account.writable = original_account.writable;
+                                        break;
+                                    }
+                                }
+                            }
+                            CONSTRAINT_SEEDS => {
+                                debug!("        PDA");
+                            }
+                            _ => {}
+                        }
+                    }
+                } else {
                     debug!("    {} {}", child_node.label, account_name);
                     // Check if the account is a signer
                     let mut is_signer = false;
@@ -144,59 +205,6 @@ pub fn extract_ix_accounts(
                         signer: is_signer,
                         writable: false,
                     });
-                } else {
-                    debug!("    constraint {} {}", child_node.label, account_name);
-                    for call_site in child_node.instructions.start + 2..child_node.instructions.end
-                    {
-                        let insn = analysis.instructions.get(call_site).unwrap();
-                        let mov64_inst = analysis.instructions.get(call_site - 1).unwrap();
-                        if !matches!(
-                            (insn.opc, mov64_inst.opc, mov64_inst.dst),
-                            (ebpf::CALL_IMM, ebpf::MOV64_IMM, 2)
-                        ) {
-                            continue;
-                        }
-                        match mov64_inst.imm {
-                            CONSTRAINT_MUT => {
-                                debug!("        mut");
-                                for account in accountmetas.iter_mut() {
-                                    if account.name == account_name {
-                                        account.writable = true;
-                                    }
-                                }
-                            }
-                            CONSTRAINT_SIGNER => {
-                                debug!("        signer");
-                                for account in accountmetas.iter_mut() {
-                                    if account.name == account_name {
-                                        account.signer = true;
-                                    }
-                                }
-                            }
-                            CONSTRAINT_RENT_EXEMPT => {
-                                debug!("        init");
-                                // Replace the first placeholder with the account
-                                let original_account = accountmetas
-                                    .iter()
-                                    .find(|account| account.name == account_name)
-                                    .unwrap()
-                                    .clone();
-                                accountmetas.retain(|account| account.name != account_name);
-                                for account in accountmetas.iter_mut() {
-                                    if account.name == "INIT_PLACEHOLDER" {
-                                        account.name = account_name.clone();
-                                        account.signer = original_account.signer;
-                                        account.writable = original_account.writable;
-                                        break;
-                                    }
-                                }
-                            }
-                            CONSTRAINT_SEEDS => {
-                                debug!("        PDA");
-                            }
-                            _ => {}
-                        }
-                    }
                 }
                 continue 'child_loop;
             }
@@ -260,7 +268,7 @@ pub fn generate_call_graph(
     executable: &Executable<InvokeContext<'static>>,
     function_ranges: &BTreeMap<usize, (usize, usize)>,
     instructions: &BTreeMap<usize, ebpf::Insn>,
-) -> Result<(FunctionGraph, FunctionGraph)> {
+) -> (FunctionGraph, FunctionGraph) {
     let mut call_graph = FunctionGraph::new();
     let mut reference_graph = FunctionGraph::new();
 
@@ -270,9 +278,8 @@ pub fn generate_call_graph(
 
         // Process each instruction in the function
         for pc in function_start..function_end {
-            let insn = match instructions.get(&pc) {
-                Some(insn) => insn,
-                None => continue,
+            let Some(insn) = instructions.get(&pc) else {
+                continue;
             };
 
             if insn.opc != ebpf::CALL_IMM {
@@ -296,7 +303,7 @@ pub fn generate_call_graph(
         call_graph.insert(function_start, call_targets);
     }
 
-    Ok((call_graph, reference_graph))
+    (call_graph, reference_graph)
 }
 
 pub fn find_instruction_handlers(
@@ -310,9 +317,8 @@ pub fn find_instruction_handlers(
 
     for &(function_start, function_end) in function_ranges.values() {
         for pc in function_start..function_end {
-            let insn = match instructions.get(&pc) {
-                Some(insn) => insn,
-                None => continue,
+            let Some(insn) = instructions.get(&pc) else {
+                continue;
             };
 
             match insn.opc {
@@ -328,13 +334,12 @@ pub fn find_instruction_handlers(
                         continue;
                     }
 
-                    let (syscall_name_bytes, _) = match executable
+                    let Some((syscall_name_bytes, _)) = executable
                         .get_loader()
                         .get_function_registry()
-                        .lookup_by_key(insn.imm as u32)
-                    {
-                        Some(pair) => pair,
-                        None => continue,
+                        .lookup_by_key(u32::try_from(insn.imm)?)
+                    else {
+                        continue;
                     };
 
                     let syscall_name = String::from_utf8_lossy(syscall_name_bytes).to_string();
@@ -342,13 +347,11 @@ pub fn find_instruction_handlers(
                         continue;
                     }
 
-                    let lddw_inst = match instructions.get(&(pc - 3)) {
-                        Some(inst) => inst,
-                        None => continue,
+                    let Some(lddw_inst) = instructions.get(&(pc - 3)) else {
+                        continue;
                     };
-                    let mov64_inst = match instructions.get(&(pc - 1)) {
-                        Some(inst) => inst,
-                        None => continue,
+                    let Some(mov64_inst) = instructions.get(&(pc - 1)) else {
+                        continue;
                     };
 
                     if !matches!(
@@ -358,8 +361,8 @@ pub fn find_instruction_handlers(
                         continue;
                     }
 
-                    let offset = (lddw_inst.imm as usize) & 0xffffffff;
-                    let length = mov64_inst.imm as usize;
+                    let offset = usize::try_from(lddw_inst.imm)? & 0xffff_ffff;
+                    let length = usize::try_from(mov64_inst.imm)?;
                     let sollog_str =
                         String::from_utf8_lossy(&executable_data[offset..offset + length]);
 
@@ -400,20 +403,17 @@ pub fn extract_accounts(
         let mut account_name_offset = None;
         let mut account_name_length = None;
         for pc in function_start + 3..function_end {
-            let insn = match instructions.get(&pc) {
-                Some(insn) => insn,
-                None => continue,
+            let Some(insn) = instructions.get(&pc) else {
+                continue;
             };
 
             match insn.opc {
                 ebpf::CALL_IMM => {
-                    let lddw_inst = match instructions.get(&(pc - 3)) {
-                        Some(inst) => inst,
-                        None => continue,
+                    let Some(lddw_inst) = instructions.get(&(pc - 3)) else {
+                        continue;
                     };
-                    let mov64_inst = match instructions.get(&(pc - 1)) {
-                        Some(inst) => inst,
-                        None => continue,
+                    let Some(mov64_inst) = instructions.get(&(pc - 1)) else {
+                        continue;
                     };
 
                     if !matches!(
@@ -423,8 +423,16 @@ pub fn extract_accounts(
                         continue;
                     }
 
-                    let offset = (lddw_inst.imm as usize) & 0xffffffff;
-                    let length = mov64_inst.imm as usize;
+                    let offset = match usize::try_from(lddw_inst.imm) {
+                        Ok(it) => it,
+                        Err(err) => {
+                            debug!("Error converting offset: {}", err);
+                            continue;
+                        }
+                    } & 0xffff_ffff;
+                    let Ok(length) = usize::try_from(mov64_inst.imm) else {
+                        continue;
+                    };
                     account_name_offset = Some(offset);
                     account_name_length = Some(length);
                 }
@@ -467,18 +475,16 @@ pub fn find_account_deserializer(
 
     for &(function_start, function_end) in function_ranges.values() {
         for pc in function_start..function_end {
-            let insn = match instructions.get(&pc) {
-                Some(insn) => insn,
-                None => continue,
+            let Some(insn) = instructions.get(&pc) else {
+                continue;
             };
 
             if insn.opc != ebpf::CALL_IMM {
                 continue;
             }
 
-            let prev_insn = match instructions.get(&(pc - 1)) {
-                Some(insn) => insn,
-                None => continue,
+            let Some(prev_insn) = instructions.get(&(pc - 1)) else {
+                continue;
             };
 
             // Find mov64 r2, 3003 AccountDidNotDeserialize
@@ -489,20 +495,17 @@ pub fn find_account_deserializer(
                 {
                     let caller_range = function_ranges.get(caller).unwrap();
                     for caller_pc in caller_range.0 + 2..caller_range.1 {
-                        let call_insn = match instructions.get(&caller_pc) {
-                            Some(insn) => insn,
-                            None => continue,
+                        let Some(call_insn) = instructions.get(&caller_pc) else {
+                            continue;
                         };
                         if call_insn.opc != ebpf::CALL_IMM {
                             continue;
                         }
-                        let lddw_inst = match instructions.get(&(caller_pc - 3)) {
-                            Some(inst) => inst,
-                            None => continue,
+                        let Some(lddw_inst) = instructions.get(&(caller_pc - 3)) else {
+                            continue;
                         };
-                        let mov64_inst = match instructions.get(&(caller_pc - 1)) {
-                            Some(inst) => inst,
-                            None => continue,
+                        let Some(mov64_inst) = instructions.get(&(caller_pc - 1)) else {
+                            continue;
                         };
 
                         if !matches!(
@@ -512,11 +515,25 @@ pub fn find_account_deserializer(
                             continue;
                         }
 
-                        let offset = (lddw_inst.imm as usize) & 0xffffffff;
-                        let length = mov64_inst.imm as usize;
+                        let offset = match usize::try_from(lddw_inst.imm) {
+                            Ok(it) => it,
+                            Err(err) => {
+                                debug!("Error converting offset: {}", err);
+                                continue;
+                            }
+                        } & 0xffff_ffff;
+                        let length = match usize::try_from(mov64_inst.imm) {
+                            Ok(it) => it,
+                            Err(err) => {
+                                debug!("Error converting length: {}", err);
+                                continue;
+                            }
+                        };
                         let account_name =
                             String::from_utf8_lossy(&executable_data[offset..offset + length]);
-                        if account_name == "IdlAccount" || !account_name.chars().next().unwrap().is_uppercase() {
+                        if account_name == "IdlAccount"
+                            || !account_name.chars().next().unwrap().is_uppercase()
+                        {
                             continue;
                         }
                         deserializers.insert(account_name.to_string(), function_start);
