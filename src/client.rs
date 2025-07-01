@@ -53,7 +53,7 @@ pub fn get_executable(client: &RpcClient, program_id: &Pubkey) -> Result<Vec<u8>
             _ => Err(anyhow!("Invalid program id, unknown account state")),
         }
     } else if account.owner == bpf_loader::id() || account.owner == bpf_loader_deprecated::id() {
-        Ok(account.data.to_vec())
+        Ok(account.data.clone())
     } else {
         Err(anyhow!("Invalid program id, unknown program owner"))
     }
