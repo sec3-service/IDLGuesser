@@ -1,7 +1,7 @@
 use crate::idl::{AccountMeta, IDLAccount};
 use anyhow::{anyhow, Result};
 use heck::ToSnakeCase;
-use log::debug;
+use log::{debug, warn};
 use solana_bpf_loader_program::{
     load_program_from_bytes, syscalls::create_program_runtime_environment_v1,
 };
@@ -119,6 +119,12 @@ pub fn extract_ix_accounts(
                 // Recover account name from error message
                 let offset = lddw_inst.imm as usize & 0xffffffff;
                 let length = mov64_inst.imm as usize;
+                if offset + length > executable_data.len() {
+                    warn!(
+                        "Invalid offset and length for account name in extract_ix_accounts"
+                    );
+                    continue;
+                }
                 let account_name =
                     String::from_utf8_lossy(&executable_data[offset..offset + length]).to_string();
 
@@ -176,18 +182,19 @@ pub fn extract_ix_accounts(
                             CONSTRAINT_RENT_EXEMPT => {
                                 debug!("        init");
                                 // Replace the first placeholder with the account
-                                let original_account = accountmetas
+                                if let Some(original_account) = accountmetas
                                     .iter()
                                     .find(|account| account.name == account_name)
-                                    .unwrap()
-                                    .clone();
-                                accountmetas.retain(|account| account.name != account_name);
-                                for account in accountmetas.iter_mut() {
-                                    if account.name == "INIT_PLACEHOLDER" {
-                                        account.name = account_name.clone();
-                                        account.signer = original_account.signer;
-                                        account.writable = original_account.writable;
-                                        break;
+                                    .cloned()
+                                {
+                                    accountmetas.retain(|account| account.name != account_name);
+                                    for account in accountmetas.iter_mut() {
+                                        if account.name == "INIT_PLACEHOLDER" {
+                                            account.name = account_name.clone();
+                                            account.signer = original_account.signer;
+                                            account.writable = original_account.writable;
+                                            break;
+                                        }
                                     }
                                 }
                             }
@@ -425,6 +432,10 @@ pub fn extract_accounts(
 
                     let offset = (lddw_inst.imm as usize) & 0xffffffff;
                     let length = mov64_inst.imm as usize;
+                    if offset + length > executable_data.len() {
+                        warn!("Invalid offset and length for account name");
+                        continue;
+                    }
                     account_name_offset = Some(offset);
                     account_name_length = Some(length);
                 }
@@ -514,9 +525,21 @@ pub fn find_account_deserializer(
 
                         let offset = (lddw_inst.imm as usize) & 0xffffffff;
                         let length = mov64_inst.imm as usize;
+                        if offset + length > executable_data.len() {
+                            warn!("Invalid offset and length for account name");
+                            continue;
+                        }
                         let account_name =
                             String::from_utf8_lossy(&executable_data[offset..offset + length]);
-                        if account_name == "IdlAccount" || !account_name.chars().next().unwrap().is_uppercase() {
+                        let should_skip = if account_name == "IdlAccount" {
+                            true
+                        } else {
+                            match account_name.chars().next() {
+                                Some(c) => !c.is_uppercase(),
+                                None => true,
+                            }
+                        };
+                        if should_skip {
                             continue;
                         }
                         deserializers.insert(account_name.to_string(), function_start);
