@@ -3,14 +3,16 @@ mod dynamic_analysis;
 mod idl;
 mod static_analysis;
 
+use anchor_lang::prelude::Pubkey as Pk;
 use anyhow::{anyhow, Result};
 use clap::Parser;
 use dynamic_analysis::extract_args;
 use dynamic_analysis::extract_types;
 use idl::{Idl, InstructionInfo, Metadata};
 use log::debug;
+use solana_pubkey::Pubkey;
 use solana_sbpf::{ebpf, static_analysis::Analysis};
-use solana_sdk::{hash::hash, pubkey::Pubkey};
+use solana_sdk::hash::hash;
 use static_analysis::{
     extract_accounts, extract_ix_accounts, find_account_deserializer, find_instruction_handlers,
     generate_call_graph, is_anchor_program, load_executable,
@@ -37,7 +39,8 @@ struct Opts {
 fn main() -> Result<()> {
     let opts = Opts::parse();
     let client = client::create_client(&opts.url);
-    let program_id = Pubkey::from_str(&opts.program_id)?;
+    let program_anchor_pk = Pk::from_str(&opts.program_id)?;
+    let program_id = Pubkey::new_from_array(program_anchor_pk.to_bytes());
 
     if opts.verbose {
         std::env::set_var("RUST_LOG", "debug");
@@ -45,7 +48,7 @@ fn main() -> Result<()> {
     env_logger::init();
 
     if !opts.force_guess {
-        if let Ok(account) = client::get_idl_account(&client, &program_id) {
+        if let Ok(account) = client::get_idl_account(&client, &program_anchor_pk) {
             let idl_path = format!("{}.json", program_id);
             let mut file = File::create(&idl_path)?;
             file.write_all(serde_json::to_string_pretty(&account)?.as_bytes())?;
