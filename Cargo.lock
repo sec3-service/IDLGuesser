@@ -6421,7 +6421,7 @@ checksum = "dcf09694a0fc14e5ffb18f9b7b7c0f15ecb6eac5b5610bf76a1853459d19daf9"
 [[package]]
 name = "solana-sbpf"
 version = "0.10.0"
-source = "git+https://github.com/leoQ7/sbpf?branch=main#c42e7ca7a231e74634c45a63ed29d95fcc0b8256"
+source = "git+https://github.com/leoQ7/sbpf?branch=main#2205fb4364be2fdf636428fcee93263aa830c048"
 dependencies = [
  "byteorder",
  "combine 3.8.1",
