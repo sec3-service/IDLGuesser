@@ -107,7 +107,7 @@ dependencies = [
  "solana-program-entrypoint 3.1.0",
  "solana-program-runtime",
  "solana-pubkey 3.0.0",
- "solana-sbpf 0.12.2",
+ "solana-sbpf",
  "solana-sdk-ids 3.0.0",
  "solana-secp256k1-recover 3.0.0",
  "solana-sha256-hasher 3.0.0",
@@ -2283,7 +2283,7 @@ dependencies = [
  "solana-program-runtime",
  "solana-pubkey 3.0.0",
  "solana-rent 3.0.0",
- "solana-sbpf 0.10.0",
+ "solana-sbpf",
  "solana-sdk 3.0.0",
  "solana-sdk-ids 3.0.0",
  "solana-svm-callback",
@@ -4231,7 +4231,7 @@ dependencies = [
  "solana-program-entrypoint 3.1.0",
  "solana-program-runtime",
  "solana-pubkey 3.0.0",
- "solana-sbpf 0.12.2",
+ "solana-sbpf",
  "solana-sdk-ids 3.0.0",
  "solana-svm-feature-set 3.0.8",
  "solana-svm-log-collector",
@@ -5906,7 +5906,7 @@ dependencies = [
  "solana-program-entrypoint 3.1.0",
  "solana-pubkey 3.0.0",
  "solana-rent 3.0.0",
- "solana-sbpf 0.12.2",
+ "solana-sbpf",
  "solana-sdk-ids 3.0.0",
  "solana-slot-hashes 3.0.0",
  "solana-stake-interface 2.0.1",
@@ -6420,25 +6420,8 @@ checksum = "dcf09694a0fc14e5ffb18f9b7b7c0f15ecb6eac5b5610bf76a1853459d19daf9"
 
 [[package]]
 name = "solana-sbpf"
-version = "0.10.0"
-source = "git+https://github.com/leoQ7/sbpf?branch=main#2205fb4364be2fdf636428fcee93263aa830c048"
-dependencies = [
- "byteorder",
- "combine 3.8.1",
- "hash32",
- "libc",
- "log",
- "rand 0.8.5",
- "rustc-demangle",
- "thiserror 2.0.17",
- "winapi",
-]
-
-[[package]]
-name = "solana-sbpf"
 version = "0.12.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f224d906c14efc7ed7f42bc5fe9588f3f09db8cabe7f6023adda62a69678e1a"
+source = "git+https://github.com/leoQ7/sbpf?branch=main#2205fb4364be2fdf636428fcee93263aa830c048"
 dependencies = [
  "byteorder",
  "combine 3.8.1",
@@ -7508,7 +7491,7 @@ dependencies = [
  "solana-instructions-sysvar 3.0.0",
  "solana-pubkey 3.0.0",
  "solana-rent 3.0.0",
- "solana-sbpf 0.12.2",
+ "solana-sbpf",
  "solana-sdk-ids 3.0.0",
 ]
 
