@@ -22,6 +22,8 @@ use std::fs::File;
 use std::io::Write;
 use std::str::FromStr;
 
+use crate::idl::output_file_path;
+
 #[derive(Parser, Debug)]
 struct Opts {
     #[arg(help = "The program ID to analyze")]
@@ -34,6 +36,8 @@ struct Opts {
     force_guess: bool,
     #[arg(long, help = "Export the disassembled assembly code to asm.txt")]
     export_asm: bool,
+    #[arg(short, long, help = "Output file for the IDL")]
+    output: Option<String>,
 }
 
 fn main() -> Result<()> {
@@ -49,7 +53,7 @@ fn main() -> Result<()> {
 
     if !opts.force_guess {
         if let Ok(account) = client::get_idl_account(&client, &program_anchor_pk) {
-            let idl_path = format!("{}.json", program_id);
+            let idl_path = output_file_path(program_id, opts.output);
             let mut file = File::create(&idl_path)?;
             file.write_all(serde_json::to_string_pretty(&account)?.as_bytes())?;
             println!("Public IDL found for {}, saved to {}", program_id, idl_path);
@@ -191,7 +195,7 @@ fn main() -> Result<()> {
     };
 
     println!("Generated IDL for {}", program_id);
-    let idl_path = format!("{}.json", program_id);
+    let idl_path = output_file_path(program_id, opts.output);
     let mut file = File::create(&idl_path)?;
     file.write_all(serde_json::to_string_pretty(&idl)?.as_bytes())?;
     println!("Saved IDL to {}", idl_path);

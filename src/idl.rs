@@ -1,4 +1,5 @@
 use serde::Serialize;
+use solana_pubkey::Pubkey;
 
 #[derive(Debug, Serialize, PartialEq)]
 pub struct Idl {
@@ -77,4 +78,8 @@ fn is_default<T: Default + PartialEq>(it: &T) -> bool {
 
 fn is_false(b: &bool) -> bool {
     !b
+}
+
+pub fn output_file_path(program_id: Pubkey, output: Option<String>) -> String {
+    output.unwrap_or_else(|| format!("{}.json", program_id))
 }
