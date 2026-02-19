@@ -19,7 +19,7 @@ use static_analysis::{
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::File;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::str::FromStr;
 
 use crate::idl::output_file_path;
@@ -36,6 +36,8 @@ struct Opts {
     force_guess: bool,
     #[arg(long, help = "Export the disassembled assembly code to asm.txt")]
     export_asm: bool,
+    #[arg(short, long, help = "Input file for the program executable data")]
+    input: Option<String>,
     #[arg(short, long, help = "Output file for the IDL")]
     output: Option<String>,
 }
@@ -61,7 +63,14 @@ fn main() -> Result<()> {
         }
     }
 
-    let executable_data = client::get_executable(&client, &program_id)?;
+    let executable_data = if opts.input.is_some() {
+        let mut file = File::open(opts.input.unwrap())?;
+        let mut data = Vec::new();
+        file.read_to_end(&mut data)?;
+        data
+    } else {
+        client::get_executable(&client, &program_id)?
+    };
 
     if !is_anchor_program(&executable_data) {
         return Err(anyhow!("Program is not an anchor program"));

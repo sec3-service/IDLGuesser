@@ -25,11 +25,13 @@ Arguments:
   <PROGRAM_ID>  The program ID to analyze
 
 Options:
-  -u, --url <URL>    Solana JSON RPC endpoint [default: https://api.mainnet-beta.solana.com]
-  -v, --verbose      Verbose logging
-  -f, --force-guess  Force guess the IDL even if a public IDL exists
-      --export-asm   Export the disassembled assembly code to asm.txt
-  -h, --help         Print help
+  -u, --url <URL>        Solana JSON RPC endpoint [default: https://api.mainnet-beta.solana.com]
+  -v, --verbose          Verbose logging
+  -f, --force-guess      Force guess the IDL even if a public IDL exists
+      --export-asm       Export the disassembled assembly code to asm.txt
+  -i, --input <INPUT>    Input file for the program executable data
+  -o, --output <OUTPUT>  Output file for the IDL
+  -h, --help             Print help
 ```
 
 ## Example
